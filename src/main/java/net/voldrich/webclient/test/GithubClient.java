@@ -9,6 +9,8 @@ import java.util.Locale;
 import java.util.TimeZone;
 import java.util.concurrent.atomic.LongAdder;
 
+import javax.annotation.Nullable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -27,6 +29,8 @@ import net.voldrich.webclient.test.dto.User;
 import net.voldrich.webclient.test.dto.UserDetail;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 import reactor.util.function.Tuple2;
 
 /**
@@ -57,6 +61,8 @@ public class GithubClient {
 
     public static final String CONTEXT_REQUEST_START = "REQUEST_START";
 
+    public static final Scheduler RATE_LIMIT_SCHEDULER = Schedulers.newSingle("RateLimitThread", true);
+
     private final GithubClientConfiguration config;
 
     private final WebClient client;
@@ -65,7 +71,8 @@ public class GithubClient {
 
     private final LongAdder numberOfRequests = new LongAdder();
 
-    private final RateLimiter rateLimiter;
+    @Nullable
+    private RateLimiter rateLimiter;
 
     static {
         DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
@@ -80,7 +87,9 @@ public class GithubClient {
     public GithubClient(GithubClientConfiguration config) {
         this.config = config;
         this.builderFactory = new DefaultUriBuilderFactory(GITHUB_URL);
-        this.rateLimiter = RateLimiter.create(2);
+        if (config.getRatePerSecond() > 0) {
+            this.rateLimiter = RateLimiter.create(config.getRatePerSecond());
+        }
         this.client = WebClient.builder()
                 .filter(ExchangeFilterFunctions.basicAuthentication("token ", config.getAccessToken()))
                 .filter(userAgent())
@@ -179,7 +188,7 @@ public class GithubClient {
     }
 
     private Mono<ClientResponse> getRequest(URI uri) {
-        return this.client
+        Mono<ClientResponse> requestMono = this.client
                 .get()
                 .uri(uri)
                 .accept(VND_GITHUB_V3)
@@ -188,8 +197,23 @@ public class GithubClient {
                 .retry(3, throwable -> {
                     logger.warn("Request {} failed {}", uri, throwable.toString());
                     return throwable instanceof IOException;
-                })
-                .doOnSubscribe(value -> rateLimiter.acquire());
+                });
+
+        return limitRateRequest(requestMono, uri);
+    }
+
+    private Mono<ClientResponse> limitRateRequest(Mono<ClientResponse> requestMono, URI uri) {
+        if (rateLimiter != null) {
+            return Mono.<ClientResponse>create(monoSink -> {
+                rateLimiter.acquire();
+                logger.info("Subscribing to request {}", uri);
+                requestMono.subscribe(
+                        clientResponse -> monoSink.success(clientResponse),
+                        throwable -> monoSink.error(throwable));
+            }).subscribeOn(RATE_LIMIT_SCHEDULER);
+        } else {
+            return requestMono;
+        }
     }
 
     private void checkResponse(ClientResponse response) {
