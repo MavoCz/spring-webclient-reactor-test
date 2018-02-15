@@ -17,7 +17,7 @@ public class GithubClientTest {
     public static final GithubClientConfiguration CONFIG = new GithubClientConfiguration(
             OWNER, REPOSITORY,
             ACCESS_TOKEN,
-            10);
+            0);
 
     protected GithubClient githubClient = new GithubClient(CONFIG);
 

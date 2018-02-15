@@ -116,6 +116,41 @@ public class ReactiveTests {
                 .forEach(this::logReceived);
     }
 
+    @Test
+    public void testFlux() {
+        Flux<Integer> doubleIntFlux = Flux.<Integer>create(fluxSink -> {
+            try {
+                for (int i = 1; i <= 20; i++) {
+                    fluxSink.next(i);
+                    fluxSink.next(i);
+                    Thread.sleep(100);
+                    if (fluxSink.isCancelled()) {
+                        return;
+                    }
+                    fluxSink.next(null);
+                }
+                fluxSink.complete();
+            } catch (Exception e) {
+                fluxSink.error(e);
+            }
+        }).subscribeOn(Schedulers.single());
+
+        doubleIntFlux
+                .distinct()
+                .toIterable()
+                .forEach(this::logReceived);
+    }
+
+    @Test
+    public void testFlux2() {
+        Flux.range(1, 20)
+                .flatMap(i -> Flux.just(i, i))
+                .delayElements(Duration.ofMillis(100))
+                .toIterable()
+                .forEach(this::logReceived);
+
+    }
+
     private void log(Object data) {
         logger.info("{}", data);
     }

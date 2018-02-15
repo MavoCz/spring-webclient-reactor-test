@@ -138,7 +138,7 @@ public class GithubClient {
 
     public Flux<UserDetail> loadContributorsPaged(Paging pagingType) {
         URI pageUri = urlBuilder(CONTRIBUTORS_URL)
-                .queryParam("pageUri", DEFAULT_PAGE_SIZE)
+                .queryParam("per_page", DEFAULT_PAGE_SIZE)
                 .build(config.getOwner(), config.getRepository());
         return performPageableRequest(pagingType, pageUri, 100)
                 .log()
