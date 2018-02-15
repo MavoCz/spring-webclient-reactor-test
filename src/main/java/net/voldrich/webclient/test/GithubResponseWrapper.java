@@ -54,7 +54,7 @@ public class GithubResponseWrapper<T> {
                 String pageTemplate = last.replace(paramWithValue,
                         paramWithValue.replace(String.valueOf(lastPageNumber), "{page}"));
 
-                return Flux.range(2, Math.min(lastPageNumber, pagesLimit))
+                return Flux.range(2, Math.min(lastPageNumber, pagesLimit) - 1)
                         .map(pageNumber -> builderFactory.uriString(pageTemplate).build(pageNumber));
             } else {
                 throw new RuntimeException("Failed to parse last page link");
