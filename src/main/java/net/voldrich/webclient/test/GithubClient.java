@@ -82,6 +82,7 @@ public class GithubClient {
         PARALEL_CONCAT_MAP,
         PARALEL_FLAT_MAP,
         RECURSIVE,
+        EXPAND,
     }
 
     public GithubClient(GithubClientConfiguration config) {
@@ -147,12 +148,18 @@ public class GithubClient {
 
     public Flux<UserDetail> performPageableRequest(Paging pagingType, URI uri, int pagesLimit) {
         switch (pagingType) {
-            case PARALEL_CONCAT_MAP: return performPageableRequestParallelConcatMap(uri, User.class, pagesLimit)
-                    .concatMap(user -> loadUserDetail(user.getLogin()));
-            case PARALEL_FLAT_MAP: return performPageableRequestParallelFlatMap(uri, User.class, pagesLimit)
-                    .flatMap(user -> loadUserDetail(user.getLogin()));
-            case RECURSIVE: return performPageableRequestRecursive(uri, User.class, pagesLimit)
-                    .flatMap(user -> loadUserDetail(user.getLogin()));
+            case PARALEL_FLAT_MAP:
+                return performPageableRequestParallelFlatMap(uri, User.class, pagesLimit)
+                        .flatMap(user -> loadUserDetail(user.getLogin()));
+            case RECURSIVE:
+                return performPageableRequestRecursive(uri, User.class, pagesLimit)
+                        .flatMap(user -> loadUserDetail(user.getLogin()));
+            case EXPAND:
+                return performPageableRequestExpand(uri, User.class)
+                        .flatMap(user -> loadUserDetail(user.getLogin()));
+            case PARALEL_CONCAT_MAP:
+                return performPageableRequestParallelConcatMap(uri, User.class, pagesLimit)
+                        .concatMap(user -> loadUserDetail(user.getLogin()));
         }
         return Flux.empty();
     }
@@ -228,7 +235,7 @@ public class GithubClient {
     private <T> Flux<T> performPageableRequestRecursive(URI uri, Class<T> clazz, int pagesLimit) {
         return getRequestWrapped(uri, clazz)
                 .flatMapMany(responseWrapper -> responseWrapper.getData()
-                        .concatWith(pagesLimit == 0 ? Flux.empty() : responseWrapper.getLinkWithRelName("next")
+                        .concatWith(pagesLimit == 0 ? Flux.empty() : responseWrapper.getNextLink()
                                 .concatMap(link -> performPageableRequestRecursive(
                                         link.getUri(), clazz, pagesLimit - 1))));
     }
@@ -246,6 +253,14 @@ public class GithubClient {
                 .flatMapMany(responseWrapper -> responseWrapper.getData()
                         .concatWith(responseWrapper.getAllPageUri(pageLimit, builderFactory)
                                 .concatMap(pageLink -> getRequest(pageLink, clazz))));
+    }
+
+    private <T> Flux<T> performPageableRequestExpand(URI uri, Class<T> clazz) {
+        return getRequestWrapped(uri, clazz)
+                .expand(responseWrapper -> responseWrapper
+                        .getNextLink()
+                        .flatMap(link -> getRequestWrapped(link.getUri(), clazz)))
+                .flatMap(GithubResponseWrapper::getData);
     }
 
 }

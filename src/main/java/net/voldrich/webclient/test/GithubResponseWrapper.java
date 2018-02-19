@@ -35,6 +35,10 @@ public class GithubResponseWrapper<T> {
         return Link.parseLinks(headers.header(HttpHeaders.LINK));
     }
 
+    public Flux<Link> getNextLink() {
+        return getLinkWithRelName("next");
+    }
+
     public Flux<Link> getLinkWithRelName(String name) {
         return Flux.fromIterable(getLinks())
                 .filter(link -> link.getRel().equalsIgnoreCase(name));

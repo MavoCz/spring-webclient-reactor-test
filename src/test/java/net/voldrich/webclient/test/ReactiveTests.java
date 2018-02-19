@@ -68,7 +68,7 @@ public class ReactiveTests {
     @Test
     public void testRecursion() throws InterruptedException {
         Function<Integer, Integer> producer = iteration -> {
-            if (iteration > 1000) {
+            if (iteration > 1000) { // will fail for 10000 on stackoverflow
                 return null;
             }
             return Thread.currentThread().getStackTrace().length;
@@ -146,6 +146,20 @@ public class ReactiveTests {
         Flux.range(1, 20)
                 .flatMap(i -> Flux.just(i, i))
                 .delayElements(Duration.ofMillis(100))
+                .toIterable()
+                .forEach(this::logReceived);
+
+    }
+
+    private Mono<Integer> addOne(Integer prevNumber) {
+        return Mono.just(prevNumber+1);
+    }
+
+    @Test
+    public void testExpand() {
+        addOne(1)
+                .expand(this::addOne)
+                .take(100000)
                 .toIterable()
                 .forEach(this::logReceived);
 

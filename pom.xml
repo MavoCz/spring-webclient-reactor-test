@@ -10,7 +10,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.javadoc.skip>true</maven.javadoc.skip>
-        <spring.version>5.0.3.RELEASE</spring.version>
+        <spring.version>5.0.4.RELEASE</spring.version>
         <reactor.version>3.1.4.RELEASE</reactor.version>
         <reactor.netty.version>0.7.3.RELEASE</reactor.netty.version>
         <slf4j.version>1.7.16</slf4j.version>
@@ -36,6 +36,13 @@
             <artifactId>reactor-netty</artifactId>
             <version>${reactor.netty.version}</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/io.projectreactor.addons/reactor-extra -->
+        <dependency>
+            <groupId>io.projectreactor.addons</groupId>
+            <artifactId>reactor-extra</artifactId>
+            <version>3.1.5.RELEASE</version>
+        </dependency>
+
 
         <!-- https://mvnrepository.com/artifact/org.springframework/spring-web -->
         <dependency>
