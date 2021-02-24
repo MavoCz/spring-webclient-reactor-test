@@ -10,14 +10,17 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import reactor.core.Disposable;
+import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.WorkQueueProcessor;
 import reactor.core.scheduler.Schedulers;
+import reactor.util.function.Tuple2;
 
 public class ReactiveTests {
 
     private static final Logger logger = LoggerFactory.getLogger(ReactiveTests.class);
-
 
     @BeforeEach
     void setUp() {
@@ -45,6 +48,30 @@ public class ReactiveTests {
                 .mergeWith(Flux.range(1, 10))
                 .distinct()
                 .toIterable().forEach(this::log);
+    }
+
+    @Test
+    void testRateLimiter() throws InterruptedException {
+        RateLimiter rateLimiter = new RateLimiter(Duration.ofMillis(100));
+
+        Flux.range(0, 100)
+                .map(integer -> "a" + integer)
+                .flatMap(value -> rateLimiter.limitRate(Mono.just(value)))
+                .subscribeOn(Schedulers.elastic())
+                .subscribe(this::log);
+
+        Flux.range(0, 100)
+                .map(integer -> "b" + integer)
+                .flatMap(value -> rateLimiter.limitRate(Mono.just(value)))
+                .subscribeOn(Schedulers.elastic())
+                .subscribe(this::log);
+
+        Thread.sleep(999999);
+    }
+
+
+    private <T> Mono<T> limitRate(Mono<T> request, WorkQueueProcessor<Long> hotSource) {
+        return request.zipWith(hotSource.next()).map(Tuple2::getT1);
     }
 
     @Test

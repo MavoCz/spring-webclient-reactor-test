@@ -12,7 +12,7 @@ public class GithubClientTest {
 
     public static final String OWNER = "facebook";
     public static final String REPOSITORY = "fresco";
-    public static final String ACCESS_TOKEN = "d37a195e442b80dcc14aa31caf6afee49f724ed1";
+    public static final String ACCESS_TOKEN = "5f73f69bf56fbde4c81a7cc17b408657ebcd793a";
 
     public static final GithubClientConfiguration CONFIG = new GithubClientConfiguration(
             OWNER, REPOSITORY,
@@ -33,7 +33,17 @@ public class GithubClientTest {
 
     @Test
     public void testPagingSingle() throws Exception {
-        List<UserDetail> details = githubClient.loadContributorsPaged(GithubClient.Paging.PARALEL_FLAT_MAP).collectList().block();
+        List<UserDetail> details = githubClient.loadContributorsPaged(GithubClient.Paging.EXPAND)
+                .take(15)
+                .collectList()
+                .block();
+        System.out.println(details.size());
+        details.forEach(System.out::println);
+    }
+
+    @Test
+    public void testSingleDetail() throws Exception {
+        List<UserDetail> details = githubClient.loadUserDetail("mavo").collectList().block();
         System.out.println(details.size());
         details.forEach(System.out::println);
     }

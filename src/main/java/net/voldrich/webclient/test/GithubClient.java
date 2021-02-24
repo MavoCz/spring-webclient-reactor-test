@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -29,9 +30,11 @@ import net.voldrich.webclient.test.dto.User;
 import net.voldrich.webclient.test.dto.UserDetail;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.SynchronousSink;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.function.Tuple2;
+import reactor.util.retry.Retry;
 
 /**
  * Uses Spring Web client
@@ -200,11 +203,11 @@ public class GithubClient {
                 .uri(uri)
                 .accept(VND_GITHUB_V3)
                 .exchange()
-                .doOnNext(clientResponse -> checkResponse(clientResponse))
-                .retry(3, throwable -> {
+                .flatMap(this::checkResponse)
+                .retryWhen(Retry.backoff(3, Duration.ofMillis(500)).filter(throwable -> {
                     logger.warn("Request {} failed {}", uri, throwable.toString());
                     return throwable instanceof IOException;
-                });
+                }));
 
         return limitRateRequest(requestMono, uri);
     }
@@ -213,7 +216,7 @@ public class GithubClient {
         if (rateLimiter != null) {
             return Mono.<ClientResponse>create(monoSink -> {
                 rateLimiter.acquire();
-                logger.info("Subscribing to request {}", uri);
+                logger.debug("Subscribing to request {}", uri);
                 requestMono.subscribe(
                         clientResponse -> monoSink.success(clientResponse),
                         throwable -> monoSink.error(throwable));
@@ -223,12 +226,14 @@ public class GithubClient {
         }
     }
 
-    private void checkResponse(ClientResponse response) {
+    private Mono<ClientResponse> checkResponse(ClientResponse response) {
         if (!response.statusCode().is2xxSuccessful()) {
-            response.bodyToMono(GithubError.class)
-                    .subscribe(error -> {
-                        throw new GithubClientException("Unsupported status");
-                    });
+            return response.bodyToMono(GithubError.class)
+                    .flatMap(errorResponse -> Mono.error(new GithubClientException(
+                            "HTTP request failed with status: " + response.statusCode() +
+                                    ": " + errorResponse.getMessage())));
+        } else {
+            return Mono.just(response);
         }
     }
 
